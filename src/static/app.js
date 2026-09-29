@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.querySelectorAll("option:not(:first-child)").forEach((option) => option.remove());
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -25,7 +26,61 @@ document.addEventListener("DOMContentLoaded", () => {
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <h5 class="participants-heading">Participants</h5>
         `;
+
+        const participantsList = document.createElement("ul");
+        participantsList.className = "participants-list";
+
+        if (details.participants.length === 0) {
+          const emptyMessage = document.createElement("li");
+          emptyMessage.className = "participants-empty";
+          emptyMessage.textContent = "No participants yet";
+          participantsList.appendChild(emptyMessage);
+        } else {
+          details.participants.forEach((participant) => {
+            const participantItem = document.createElement("li");
+            participantItem.className = "participant-item";
+
+            const participantName = document.createElement("span");
+            participantName.textContent = participant;
+            participantItem.appendChild(participantName);
+
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "participant-remove";
+            removeButton.setAttribute("aria-label", `Cancel signup for ${participant}`);
+            removeButton.title = "Cancel signup";
+            removeButton.innerHTML = `
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 6h18M8 6V4h8v2m3 0-.9 14H5.9L5 6m4 4v6m6-6v6" />
+              </svg>
+            `;
+            removeButton.addEventListener("click", async () => {
+              removeButton.disabled = true;
+              try {
+                const deleteResponse = await fetch(
+                  `/activities/${encodeURIComponent(name)}/signup?email=${encodeURIComponent(participant)}`,
+                  { method: "DELETE" }
+                );
+
+                if (!deleteResponse.ok) {
+                  const result = await deleteResponse.json();
+                  throw new Error(result.detail || "Failed to cancel signup");
+                }
+
+                await fetchActivities();
+              } catch (error) {
+                removeButton.disabled = false;
+                console.error("Error canceling signup:", error);
+              }
+            });
+            participantItem.appendChild(removeButton);
+            participantsList.appendChild(participantItem);
+          });
+        }
+
+        activityCard.appendChild(participantsList);
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
